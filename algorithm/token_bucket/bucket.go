@@ -6,32 +6,37 @@ import (
 	"time"
 )
 
-// bucket defines a generic lock-free implementation of a Token bucket.
+// bucket defines a generic lock-free implementation of a Token Bucket.
 type bucket struct {
-	inc      int64
-	tokens   int64
-	capacity int64
-	freq     time.Duration
-	closing  chan struct{}
+	maxAmount    int64         // the maximum number of tokens the bucket can hold
+	refillAmount int64         // the amount of time between refills
+	refillTime   time.Duration // the amount of time between refills
+	tokens       int64         // trigger channel to close the bucket
+
+	close chan struct{} // trigger channel to close the bucket
 }
 
-// Newbucket returns a full bucket with c capacity and starts a filling
-// go-routine which ticks every freq. The number of tokens added on each tick
+// newbucket returns a full bucket with maxAmount and starts a filling
+// go-routine which ticks every refillTime. The number of tokens added on each tick
 // is computed dynamically to be even across the duration of a second.
 //
-// If freq == -1 then the filling go-routine won't be started. Otherwise,
-// If freq < 1/c seconds, then it will be adjusted to 1/c seconds.
-func newbucket(c int64, freq time.Duration) *bucket {
-	b := &bucket{tokens: c, capacity: c, closing: make(chan struct{})}
-
-	if freq == -1 {
-		return b
-	} else if evenFreq := time.Duration(1e9 / c); freq < evenFreq {
-		freq = evenFreq
+// If refillTime == -1 then the filling go-routine won't be started. Otherwise,
+// If refillTime < 1/maxAmount seconds, then it will be adjusted to 1/maxAmount seconds.
+func newBucket(maxAmount int64, refillTime time.Duration) *bucket {
+	b := &bucket{
+		tokens:    maxAmount,
+		maxAmount: maxAmount,
+		close:     make(chan struct{}),
 	}
 
-	b.freq = freq
-	b.inc = int64(math.Floor(.5 + (float64(c) * freq.Seconds())))
+	if refillTime == -1 {
+		return b
+	} else if evenrefillTime := time.Duration(1e9 / maxAmount); refillTime < evenrefillTime {
+		refillTime = evenrefillTime
+	}
+
+	b.refillAmount = int64(math.Floor(.5 + (float64(maxAmount) * refillTime.Seconds())))
+	b.refillTime = refillTime
 
 	go b.fill()
 
@@ -39,42 +44,34 @@ func newbucket(c int64, freq time.Duration) *bucket {
 }
 
 // Take attempts to take n tokens out of the bucket.
-// If tokens == 0, nothing will be taken.
-// If n <= tokens, n tokens will be taken.
-// If n > tokens, all tokens will be taken.
-//
 // This method is thread-safe.
 func (b *bucket) Take(n int64) (taken int64) {
 	for {
-		if tokens := atomic.LoadInt64(&b.tokens); tokens == 0 {
+		if tokens := atomic.LoadInt64(&b.tokens); tokens == 0 { // If tokens == 0, nothing will be taken.
 			return 0
 		} else if n <= tokens {
-			if !atomic.CompareAndSwapInt64(&b.tokens, tokens, tokens-n) {
+			if !atomic.CompareAndSwapInt64(&b.tokens, tokens, tokens-n) { // If n <= tokens, n tokens will be taken.
 				continue
 			}
 			return n
-		} else if atomic.CompareAndSwapInt64(&b.tokens, tokens, 0) { // Spill
+		} else if atomic.CompareAndSwapInt64(&b.tokens, tokens, 0) { // If n > tokens, all tokens will be taken.
 			return tokens
 		}
 	}
 }
 
 // Put attempts to add n tokens to the bucket.
-// If tokens == capacity, nothing will be added.
-// If n <= capacity - tokens, n tokens will be added.
-// If n > capacity - tokens, capacity - tokens will be added.
-//
 // This method is thread-safe.
 func (b *bucket) Put(n int64) (added int64) {
 	for {
-		if tokens := atomic.LoadInt64(&b.tokens); tokens == b.capacity {
+		if tokens := atomic.LoadInt64(&b.tokens); tokens == b.maxAmount { // If tokens == capacity, nothing will be added.
 			return 0
-		} else if left := b.capacity - tokens; n <= left {
-			if !atomic.CompareAndSwapInt64(&b.tokens, tokens, tokens+n) {
+		} else if left := b.maxAmount - tokens; n <= left {
+			if !atomic.CompareAndSwapInt64(&b.tokens, tokens, tokens+n) { // If n <= capacity - tokens, n tokens will be added.
 				continue
 			}
 			return n
-		} else if atomic.CompareAndSwapInt64(&b.tokens, tokens, b.capacity) {
+		} else if atomic.CompareAndSwapInt64(&b.tokens, tokens, b.maxAmount) { // If n > capacity - tokens, capacity - tokens will be added.
 			return left
 		}
 	}
@@ -104,27 +101,27 @@ func (b *bucket) Wait(n int64) time.Duration {
 
 // Close stops the filling go-routine given it was started.
 func (b *bucket) Close() error {
-	close(b.closing)
+	close(b.close)
 	return nil
 }
 
 // wait returns the minimum amount of time required for n tokens to be available.
-// if n > capacity, n will be adjusted to capacity
+// if n > maxAmount, n will be adjusted to maxAmount
 func (b *bucket) wait(n int64) time.Duration {
-	return time.Duration(int64(math.Ceil(math.Min(float64(n), float64(b.capacity))/float64(b.inc))) *
-		b.freq.Nanoseconds())
+	return time.Duration(int64(math.Ceil(math.Min(float64(n), float64(b.maxAmount))/float64(b.refillAmount))) *
+		b.refillTime.Nanoseconds())
 }
 
 func (b *bucket) fill() {
-	ticker := time.NewTicker(b.freq)
+	ticker := time.NewTicker(b.refillTime)
 	defer ticker.Stop()
 
 	for range ticker.C {
 		select {
-		case <-b.closing:
+		case <-b.close:
 			return
 		default:
-			b.Put(b.inc)
+			b.Put(b.refillAmount)
 		}
 	}
 }

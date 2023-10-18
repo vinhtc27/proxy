@@ -39,8 +39,6 @@ func main() {
 		io.Copy(rw, originServerResponse.Body)
 	})
 
-	log.Fatal(http.ListenAndServe("127.0.0.1:9090",
-		tb.ReqTokenBucket(proxy, 5),
-	))
+	log.Fatal(http.ListenAndServe("127.0.0.1:9090", tb.RequestThrottler(proxy, 15)))
 
 }

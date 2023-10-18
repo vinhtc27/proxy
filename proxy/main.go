@@ -40,5 +40,5 @@ func main() {
 		io.Copy(rw, originServerResponse.Body)
 	})
 
-	log.Fatal(http.ListenAndServe(":9090", http.HandleFunc(ratelimit.Handler(proxy))))
+	log.Fatal(http.ListenAndServe(":9090", proxy))
 }

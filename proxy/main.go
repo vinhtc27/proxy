@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	tb "proxy/algorithm/token_bucket"
 	"time"
 )
 
@@ -25,9 +26,7 @@ func main() {
 		req.URL.Host = originServerURL.Host
 		req.URL.Scheme = originServerURL.Scheme
 		req.RequestURI = ""
-		fmt.Println(req.Host)
-		fmt.Println(req.Method)
-		fmt.Println(req.URL)
+
 		// send a request to the origin server
 		originServerResponse, err := http.DefaultClient.Do(req)
 		if err != nil {
@@ -40,5 +39,8 @@ func main() {
 		io.Copy(rw, originServerResponse.Body)
 	})
 
-	log.Fatal(http.ListenAndServe(":9090", proxy))
+	log.Fatal(http.ListenAndServe("127.0.0.1:9090",
+		tb.ReqTokenBucket(proxy, 5),
+	))
+
 }

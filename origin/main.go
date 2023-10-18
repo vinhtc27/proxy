@@ -13,5 +13,5 @@ func main() {
 		_, _ = fmt.Fprint(rw, "origin server response")
 	})
 
-	log.Fatal(http.ListenAndServe(":8080", originServerHandler))
+	log.Fatal(http.ListenAndServe("127.0.0.1:8080", originServerHandler))
 }

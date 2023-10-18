@@ -9,7 +9,7 @@ import (
 // bucket defines a generic lock-free implementation of a Token Bucket.
 type bucket struct {
 	maxAmount    int64         // the maximum number of tokens the bucket can hold
-	refillAmount int64         // the amount of time between refills
+	refillAmount int64         // the number of tokens to be added on each refill
 	refillTime   time.Duration // the amount of time between refills
 	tokens       int64         // trigger channel to close the bucket
 
@@ -29,17 +29,18 @@ func newBucket(maxAmount int64, refillTime time.Duration) *bucket {
 		close:     make(chan struct{}),
 	}
 
-	if refillTime == -1 {
-		return b
-	} else if evenrefillTime := time.Duration(1e9 / maxAmount); refillTime < evenrefillTime {
-		refillTime = evenrefillTime
+	if evenRefillTime := time.Duration(1e9 / maxAmount); refillTime < evenRefillTime {
+		refillTime = evenRefillTime
 	}
 
 	b.refillAmount = int64(math.Floor(.5 + (float64(maxAmount) * refillTime.Seconds())))
 	b.refillTime = refillTime
 
-	go b.fill()
+	if refillTime == -1 || refillTime < 0 {
+		return b
+	}
 
+	go b.fill()
 	return b
 }
 

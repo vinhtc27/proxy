@@ -1,7 +1,6 @@
 package tb
 
 import (
-	"math"
 	"sync"
 	"time"
 )
@@ -48,9 +47,9 @@ func (t *throttler) Bucket(key string, maxAmount int64) *bucket {
 	b, ok := t.buckets[key]
 
 	if !ok {
-		b = newBucket(maxAmount, -1) // -1 param means no filling go-routine for this bucket
-		b.refillAmount = int64(math.Floor(.5 + (float64(b.maxAmount) * t.refillTime.Seconds())))
-		b.refillTime = t.refillTime
+		// -1 param means no filling go-routine for this bucket
+		// because it's already handled by the throttler's single filling go-routine
+		b = newBucket(maxAmount, -1)
 		t.buckets[key] = b
 	}
 

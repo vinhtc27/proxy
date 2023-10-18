@@ -35,17 +35,3 @@ func RequestThrottler(h http.Handler, maxAmount int64) http.Handler {
 		h.ServeHTTP(w, r)
 	})
 }
-
-// TODO: implement ByteBucket
-func ByteBucket(h http.Handler, maxAmount int64) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.ServeHTTP(w, r)
-	})
-}
-
-// TODO: implement RequestBucket
-func RequestBucket(h http.Handler, maxAmount int64) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.ServeHTTP(w, r)
-	})
-}

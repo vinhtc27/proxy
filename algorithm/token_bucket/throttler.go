@@ -109,7 +109,7 @@ func (t *throttler) fill(freq time.Duration) {
 	ticker := time.NewTicker(freq)
 	defer ticker.Stop()
 
-	for _ = range ticker.C {
+	for range ticker.C {
 		select {
 		case <-t.closing:
 			return

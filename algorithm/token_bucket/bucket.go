@@ -119,7 +119,7 @@ func (b *bucket) fill() {
 	ticker := time.NewTicker(b.freq)
 	defer ticker.Stop()
 
-	for _ = range ticker.C {
+	for range ticker.C {
 		select {
 		case <-b.closing:
 			return

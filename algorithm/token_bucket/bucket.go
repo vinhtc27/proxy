@@ -36,7 +36,7 @@ func newBucket(maxAmount int64, refillTime time.Duration) *bucket {
 	b.refillAmount = int64(math.Floor(.5 + (float64(maxAmount) * refillTime.Seconds())))
 	b.refillTime = refillTime
 
-	if refillTime == -1 || refillTime < 0 {
+	if refillTime == -1 {
 		return b
 	}
 

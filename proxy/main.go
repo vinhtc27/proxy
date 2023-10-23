@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	tb "proxy/algorithm/token_bucket"
+	sw "proxy/algorithm/sliding_window"
 	"time"
 )
 
@@ -39,6 +39,6 @@ func main() {
 		io.Copy(rw, originServerResponse.Body)
 	})
 
-	log.Fatal(http.ListenAndServe("127.0.0.1:9090", tb.RequestThrottler(proxy, 10)))
+	log.Fatal(http.ListenAndServe("127.0.0.1:9090", sw.RequestThrottler(proxy, 10)))
 
 }

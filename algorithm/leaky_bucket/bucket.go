@@ -3,6 +3,7 @@ package lb
 import (
 	"errors"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 )
@@ -40,7 +41,7 @@ func (b *bucket) Limit() (time.Duration, error) {
 		b.last += b.rate
 	} else {
 		// Queue rỗng.
-		
+
 		// offset: trong trường hợp request hiện tại đến trước thời gian rate
 		var offset int64
 		delta := now - b.last
@@ -50,8 +51,10 @@ func (b *bucket) Limit() (time.Duration, error) {
 		b.last = now + offset
 	}
 	wait := b.last - now
-	fmt.Println(wait/b.rate, b.capacity)
-	if wait/b.rate > b.capacity {
+	current := int64(math.Ceil(float64(wait)/float64(b.rate)))
+	fmt.Println(current, b.capacity)
+	if current >= b.capacity {
+		b.last = now + b.capacity*b.rate
 		return time.Duration(wait), ErrLimitExhausted
 	}
 	return time.Duration(wait), nil

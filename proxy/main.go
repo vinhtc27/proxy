@@ -3,84 +3,104 @@ package main
 import (
 	"flag"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"proxy/algorithm/sliding_window"
+	"proxy/ratelimit/token_bucket"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
 type Server struct {
-	URL          *url.URL
-	Alive        bool
-	ReverseProxy *httputil.ReverseProxy
+	Url     *url.URL
+	Alive   bool
+	Reverse *httputil.ReverseProxy
+}
+
+func NewServer(s string) *Server {
+	url, err := url.Parse(s)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	transport := &http.Transport{
+		MaxIdleConns:          100,              // Adjust based on expected load.
+		MaxIdleConnsPerHost:   10,               // Limit idle connections per host.
+		MaxConnsPerHost:       0,                // No limit on the total connections per host.
+		ResponseHeaderTimeout: 2 * time.Second,  // Adjust based on desired response time.
+		ExpectContinueTimeout: 1 * time.Second,  // Adjust based on desired behavior.
+		IdleConnTimeout:       30 * time.Second, // Adjust based on desired connection reuse.
+		Dial: (&net.Dialer{
+			Timeout:   1 * time.Second,  // Adjust connection timeout as needed.
+			KeepAlive: 30 * time.Second, // Adjust keep-alive time as needed.
+		}).Dial,
+	}
+
+	reverse := &httputil.ReverseProxy{
+		Director: func(req *http.Request) {
+			req.URL = url
+		},
+		Transport: transport,
+		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+			http.Error(w, "Origin server error", http.StatusInternalServerError)
+		},
+	}
+
+	return &Server{
+		Url:     url,
+		Alive:   true,
+		Reverse: reverse,
+	}
 }
 
 type ServerPool struct {
 	servers []*Server
-	current int64
+	index   int64
 }
 
 func (s *ServerPool) AddServer(server *Server) {
 	s.servers = append(s.servers, server)
 }
 
-func (s *ServerPool) NextServerIndex() int64 {
-	s.current++
-	return s.current % int64(len(s.servers))
-}
-
-func (s *ServerPool) GetNextServer() *Server {
-	next := s.NextServerIndex()
-	return s.servers[next]
+func (s *ServerPool) GetServer() *Server {
+	atomic.AddInt64(&s.index, 1)
+	//TODO: check overflow s.index
+	return s.servers[s.index%int64(len(s.servers))]
 }
 
 func main() {
 	var serversArg string
 	flag.StringVar(&serversArg, "servers", "", "Load balanced servers, use commas to separate")
 	flag.Parse()
-
 	if len(serversArg) == 0 {
 		log.Fatal("Missing servers parameter")
 	}
 
 	servers := strings.Split(serversArg, ",")
-
-	serverPool := ServerPool{current: -1}
+	serverPool := ServerPool{index: -1}
 	for _, s := range servers {
-		serverUrl, err := url.Parse(s)
-
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		proxy := httputil.NewSingleHostReverseProxy(serverUrl)
-		serverPool.AddServer(&Server{
-			URL:          serverUrl,
-			Alive:        true,
-			ReverseProxy: proxy,
-		})
+		serverPool.AddServer(NewServer(s))
 	}
 
 	host := "127.0.0.1:9090"
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		peer := serverPool.GetNextServer()
-
-		if peer != nil {
-			peer.ReverseProxy.ServeHTTP(w, r)
+		server := serverPool.GetServer()
+		if server != nil {
+			server.Reverse.ServeHTTP(w, r)
 			return
 		}
-
-		http.Error(w, "Service unavailable", http.StatusServiceUnavailable)
+		http.Error(w, "Ogirin server unavailable", http.StatusServiceUnavailable)
 	})
 	proxy := http.Server{
 		Addr:              host,
-		ReadTimeout:       time.Second,
-		WriteTimeout:      time.Second,
+		ReadTimeout:       1 * time.Second,
+		WriteTimeout:      1 * time.Second,
 		ReadHeaderTimeout: 2 * time.Second,
-		IdleTimeout:       10 * time.Second,
-		Handler:           sliding_window.RequestThrottler(handler, 100),
+		IdleTimeout:       30 * time.Second,
+		// Handler:           handler,
+		Handler: token_bucket.RequestThrottler(handler, 100),
 	}
 
 	log.Printf("Proxy started at %s\n", host)

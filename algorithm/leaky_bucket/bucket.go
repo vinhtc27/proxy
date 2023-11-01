@@ -1,4 +1,4 @@
-package lb
+package leaky_bucket
 
 import (
 	"errors"
@@ -12,8 +12,8 @@ var (
 	ErrLimitExhausted = errors.New("requests limit exhausted")
 )
 
-type bucket struct {	
-	mu   sync.Mutex
+type bucket struct {
+	mu       sync.Mutex
 	capacity int64
 	rate     int64
 	last     int64 //timestamp của request cuối cùng trong queue
@@ -21,8 +21,8 @@ type bucket struct {
 
 func newBucket(capacity int64, rate time.Duration) *bucket {
 	return &bucket{
-		capacity: capacity, 
-		rate: int64(rate),
+		capacity: capacity,
+		rate:     int64(rate),
 	}
 }
 
@@ -40,7 +40,7 @@ func (b *bucket) Limit() (time.Duration, error) {
 		b.last += b.rate
 	} else {
 		// Queue rỗng.
-		
+
 		// offset: trong trường hợp request hiện tại đến trước thời gian rate
 		var offset int64
 		delta := now - b.last

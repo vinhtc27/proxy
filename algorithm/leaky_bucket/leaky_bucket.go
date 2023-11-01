@@ -1,4 +1,4 @@
-package lb
+package leaky_bucket
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-var requestThrottler = newThrottler(time.Duration(1000) * time.Millisecond) 
+var requestThrottler = newThrottler(time.Duration(1000) * time.Millisecond)
 
 // ReqThrottledHandler wraps an http.Handler with per host request throttling
 // to the specified request maxAmount, responding with 429 when throttled.

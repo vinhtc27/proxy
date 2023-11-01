@@ -1,4 +1,4 @@
-package lb
+package leaky_bucket
 
 import (
 	"sync"
@@ -6,17 +6,16 @@ import (
 )
 
 type throttler struct {
-	mutex	sync.RWMutex       // mutex to protect the buckets map
-	rate	time.Duration      // the amount of time between refills of each bucket
-	buckets	map[string]*bucket // the map of buckets
+	mutex   sync.RWMutex       // mutex to protect the buckets map
+	rate    time.Duration      // the amount of time between refills of each bucket
+	buckets map[string]*bucket // the map of buckets
 	// close	chan struct{}      // trigger channel to close the throttler
 }
 
-
 func newThrottler(rate time.Duration) *throttler {
 	th := &throttler{
-		rate: rate,
-		buckets:    map[string]*bucket{},
+		rate:    rate,
+		buckets: map[string]*bucket{},
 		// close:      make(chan struct{}),
 	}
 	return th

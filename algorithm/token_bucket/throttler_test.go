@@ -1,4 +1,4 @@
-package tb
+package token_bucket
 
 import (
 	"io"

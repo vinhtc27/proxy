@@ -1,44 +1,90 @@
 package main
 
 import (
-	"fmt"
-	"io"
+	"flag"
 	"log"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
-	sw "proxy/algorithm/sliding_window"
+	"proxy/algorithm/sliding_window"
+	"strings"
 	"time"
 )
 
-func main() {
+type Server struct {
+	URL          *url.URL
+	Alive        bool
+	ReverseProxy *httputil.ReverseProxy
+}
 
-	// define origin server URL
-	originServerURL, err := url.Parse("http://127.0.0.1:8080")
-	if err != nil {
-		log.Fatal("invalid origin server URL")
+type ServerPool struct {
+	servers []*Server
+	current int64
+}
+
+func (s *ServerPool) AddServer(server *Server) {
+	s.servers = append(s.servers, server)
+}
+
+func (s *ServerPool) NextServerIndex() int64 {
+	s.current++
+	return s.current % int64(len(s.servers))
+}
+
+func (s *ServerPool) GetNextServer() *Server {
+	next := s.NextServerIndex()
+	return s.servers[next]
+}
+
+func main() {
+	var serversArg string
+	flag.StringVar(&serversArg, "servers", "", "Load balanced servers, use commas to separate")
+	flag.Parse()
+
+	if len(serversArg) == 0 {
+		log.Fatal("Missing servers parameter")
 	}
 
-	proxy := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		fmt.Printf("[proxy server] received request at: %s\n", time.Now())
+	servers := strings.Split(serversArg, ",")
 
-		// set req Host, URL and Request URI to forward a request to the origin server
-		req.Host = originServerURL.Host
-		req.URL.Host = originServerURL.Host
-		req.URL.Scheme = originServerURL.Scheme
-		req.RequestURI = ""
+	serverPool := ServerPool{current: -1}
+	for _, s := range servers {
+		serverUrl, err := url.Parse(s)
 
-		// send a request to the origin server
-		originServerResponse, err := http.DefaultClient.Do(req)
 		if err != nil {
-			rw.WriteHeader(http.StatusInternalServerError)
-			_, _ = fmt.Fprint(rw, err)
+			log.Fatal(err)
+		}
+
+		proxy := httputil.NewSingleHostReverseProxy(serverUrl)
+		serverPool.AddServer(&Server{
+			URL:          serverUrl,
+			Alive:        true,
+			ReverseProxy: proxy,
+		})
+	}
+
+	host := "127.0.0.1:9090"
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		peer := serverPool.GetNextServer()
+
+		if peer != nil {
+			peer.ReverseProxy.ServeHTTP(w, r)
 			return
 		}
 
-		rw.WriteHeader(http.StatusOK)
-		io.Copy(rw, originServerResponse.Body)
+		http.Error(w, "Service unavailable", http.StatusServiceUnavailable)
 	})
+	proxy := http.Server{
+		Addr:              host,
+		ReadTimeout:       time.Second,
+		WriteTimeout:      time.Second,
+		ReadHeaderTimeout: 2 * time.Second,
+		IdleTimeout:       10 * time.Second,
+		Handler:           sliding_window.RequestThrottler(handler, 10000),
+	}
 
-	log.Fatal(http.ListenAndServe("127.0.0.1:9090", sw.RequestThrottler(proxy, 10)))
-
+	log.Printf("Proxy started at %s\n", host)
+	if err := proxy.ListenAndServe(); err != nil {
+		log.Fatal(err)
+	}
 }

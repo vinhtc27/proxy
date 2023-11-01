@@ -1,4 +1,4 @@
-package sw
+package sliding_window
 
 import (
 	"time"

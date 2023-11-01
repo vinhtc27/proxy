@@ -1,4 +1,4 @@
-package fw
+package fixed_window
 
 import (
 	"net/http"

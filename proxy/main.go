@@ -80,7 +80,7 @@ func main() {
 		WriteTimeout:      time.Second,
 		ReadHeaderTimeout: 2 * time.Second,
 		IdleTimeout:       10 * time.Second,
-		Handler:           sliding_window.RequestThrottler(handler, 10000),
+		Handler:           sliding_window.RequestThrottler(handler, 100),
 	}
 
 	log.Printf("Proxy started at %s\n", host)

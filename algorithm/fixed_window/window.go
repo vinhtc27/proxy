@@ -1,4 +1,4 @@
-package fw
+package fixed_window
 
 import (
 	"sync"
@@ -14,7 +14,7 @@ type window struct {
 }
 
 func newWindow(limit int, windowSize time.Duration) *window {
-	return &window {
+	return &window{
 		limit:           limit,
 		windowSize:      windowSize,
 		requestCount:    0,

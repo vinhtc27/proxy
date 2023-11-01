@@ -37,14 +37,17 @@ func (sll *SlidingLogLimiter) Halt(host string) bool {
 	// Đếm số request trong thời gian tính từ thời điểm gọi đến trước đó 1 khoảng thời gian bằng cách duyệt từ cuối hostLog
 	requestCount := 0
 	timestamp := now.Add(-sll.interval)
+	newTs := sll.hostLog[host][:0]
 	for i := len(sll.hostLog[host]) - 1; i >= 0; i-- {
 		t := sll.hostLog[host][i]
 		if !t.Before(timestamp) {
+			newTs = append(newTs, t)
 			requestCount++
 		} else {
 			break
 		}
 	}
+	sll.hostLog[host] = newTs
 
 	fmt.Printf("Number of requests within the last %.0f seconds: %d\n", sll.interval.Seconds(), requestCount)
 	fmt.Printf("Max request in %.0f seconds: %d\n", sll.interval.Seconds(), sll.maxRequests)

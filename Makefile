@@ -18,3 +18,6 @@ bench:
 	wrk -c 128 -t 16 -d 32 http://127.0.0.1:9090
 port:
 	lsof -i -P -n | grep LISTEN
+
+websocket:
+	go run origin/websocket/main.go

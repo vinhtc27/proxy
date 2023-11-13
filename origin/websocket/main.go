@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -8,6 +9,16 @@ import (
 
 	"github.com/gorilla/websocket"
 )
+
+const (
+    Echo = iota+1;
+    Broadcast
+)
+
+type wsMessage struct {
+    Type   int      `json:"messageType"`
+    Content string `json:"content"`
+}
 
 var (
     conns = make(map[*websocket.Conn]bool)
@@ -21,7 +32,7 @@ var (
 // define a reader which will listen for
 // new messages being sent to our WebSocket
 // endpoint
-func reader(conn *websocket.Conn, isBroadcast bool) {
+func reader(conn *websocket.Conn) {
     for {
         // read in a message
         messageType, p, err := conn.ReadMessage()
@@ -31,64 +42,75 @@ func reader(conn *websocket.Conn, isBroadcast bool) {
         }
         // print out that message for clarity
         fmt.Printf("Client %s sent: %s\n", conn.RemoteAddr() , string(p))
-        // Check if message is broadcast
-        if isBroadcast {
-            for ws := range conns {
-                go func(ws *websocket.Conn) {
-                    if err := ws.WriteMessage(1, p); err != nil {
-                        log.Println(err)
-                    }
-                }(ws)
-            }
-        } else { 
-            if err := conn.WriteMessage(messageType, p); err != nil {
+
+        rcvMsg := wsMessage{}
+        if err := json.Unmarshal(p, &rcvMsg); err != nil {
+            log.Println(err)
+            if err := conn.WriteMessage(1, []byte(`Message Format Error! (e.g. {"messageType": 1, "content": "example"})`)); err != nil {
                 log.Println(err)
                 return
             }
+        } else if ( rcvMsg.Type == 0 ||  len(rcvMsg.Content) == 0 ){
+            if err := conn.WriteMessage(1, []byte(`Message Format Error! (e.g. {"messageType": 1, "content": "example"})`)); err != nil {
+                log.Println(err)
+                return
+            }
+        } else {
+            switch rcvMsg.Type {
+                case Broadcast :
+                    for ws := range conns {
+                        go func(ws *websocket.Conn) {
+                            if err := ws.WriteMessage(1, []byte(rcvMsg.Content)); err != nil {
+                                log.Println(err)
+                            }
+                        }(ws)
+                    }
+                case Echo :
+                    if err := conn.WriteMessage(messageType, []byte(rcvMsg.Content)); err != nil {
+                        log.Println(err)
+                        return
+                    }
+                default:
+                    if err := conn.WriteMessage(1, []byte(`Undefined Message Type! (1 - Echo, 2 - Broadcast)`)); err != nil {
+                        log.Println(err)
+                        return
+                    }
+            }
+        
         }
-
     }
 }
 
-// Reply to client with the same message
-func echoEndpoint(w http.ResponseWriter, r *http.Request) {
+
+// Websocket root endpoint
+// Message format: {"messageType": 1, "content": "example"}
+// messageType: 1 - Echo, 2 - Broadcast
+func rootEndpoint(w http.ResponseWriter, r *http.Request) {
     upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 
     // upgrade this connection to a WebSocket connection
     ws, err := upgrader.Upgrade(w, r, nil)
     if err != nil {
         log.Println(err)
+        http.Error(w, "Could not open websocket connection", http.StatusBadRequest)
+        return
     }
-
+    conns[ws] = true
     log.Printf("Client %s Connected\n", ws.RemoteAddr())
-    err = ws.WriteMessage(1, []byte("Hi Client, this is echo endpoint!"))
+    err = ws.WriteMessage(1, []byte(
+        `Hi Client, this is root endpoint!
+        Message format: {"messageType": 1, "content": "example"}
+        MessageType: 1 - Echo, 2 - Broadcast
+        `))
     if err != nil {
         log.Println(err)
     }
     
     // listen for new messages coming through on WebSocket connection
-    reader(ws, false)
+    reader(ws)
 }
 
-// Send message to all clients
-func broadcastEndpoint(w http.ResponseWriter, r *http.Request) {
-    upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 
-    // upgrade this connection to a WebSocket connection
-    ws, err := upgrader.Upgrade(w, r, nil)
-    if err != nil {
-        log.Println(err)
-    }
-    conns[ws] = true
-    log.Printf("Client %s Connected\n", ws.RemoteAddr())
-    err = ws.WriteMessage(1, []byte("Hi Client, this is broadcast endpoint!"))
-    if err != nil {
-        log.Println(err)
-    }
-    // listen for new messages coming through on WebSocket connection
-    reader(ws, true)
-
-}
 
 //Periodically send server date time to client
 func dataStreamEndpoint(w http.ResponseWriter, r *http.Request) {
@@ -116,8 +138,7 @@ func dataStreamEndpoint(w http.ResponseWriter, r *http.Request) {
 
 }
 func main() {
-    http.HandleFunc("/echo", echoEndpoint)
-    http.HandleFunc("/broadcast", broadcastEndpoint)
+    http.HandleFunc("/", rootEndpoint)
     http.HandleFunc("/data", dataStreamEndpoint)
-    log.Fatal(http.ListenAndServe(":8312", nil))
+    log.Fatal(http.ListenAndServe("127.0.0.1:8312", nil))
 }

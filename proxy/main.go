@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"proxy/proxy/websocket"
 	"proxy/ratelimit/token_bucket"
 	"strings"
 	"sync/atomic"
@@ -72,7 +73,9 @@ func (s *ServerPool) GetServer() *Server {
 
 func main() {
 	var serversArg string
+	var websocketArg string
 	flag.StringVar(&serversArg, "servers", "", "Load balanced servers, use commas to separate")
+	flag.StringVar(&websocketArg, "websocket", "", "Whether to use websocket")
 	flag.Parse()
 	if len(serversArg) == 0 {
 		log.Fatal("Missing servers parameter")
@@ -93,6 +96,26 @@ func main() {
 		}
 		http.Error(w, "Ogirin server unavailable", http.StatusServiceUnavailable)
 	})
+
+	// For websocket proxy handler
+	if len(websocketArg) > 0 {
+		wp, err := websocket.NewProxy("ws://localhost:8312/", func(r *http.Request) error {
+			// Permission to verify
+			r.Header.Set("Cookie", "----")
+			// Source of disguise
+			r.Header.Set("Origin", "http://localhost:8312")
+			return nil
+		})
+		if err != nil {
+			log.Fatal()
+		}
+		
+		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			wp.Proxy(w, r)
+		})
+	
+	}
+
 	proxy := http.Server{
 		Addr:              host,
 		ReadTimeout:       1 * time.Second,

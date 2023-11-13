@@ -19,5 +19,8 @@ bench:
 port:
 	lsof -i -P -n | grep LISTEN
 
-websocket:
+websocket-origin:
 	go run origin/websocket/main.go
+
+websocket-proxy:
+	go run proxy/main.go --servers=http://127.0.0.1:8080 --websocket=true

@@ -15,12 +15,12 @@ func main() {
 			fmt.Printf("[%s] response write error : %v\n", host, err)
 		}
 	})
-	orgin := http.Server{
+	origin := http.Server{
 		Addr:    host,
 		Handler: handler,
 	}
 	log.Printf("Origin started at %s\n", host)
-	if err := orgin.ListenAndServe(); err != nil {
+	if err := origin.ListenAndServe(); err != nil {
 		log.Fatal(err)
 	}
 }

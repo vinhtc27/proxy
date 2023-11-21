@@ -2,7 +2,9 @@ package main
 
 import (
 	"io"
+	"log"
 	"net/http"
+	"os"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -48,5 +50,14 @@ func main() {
 	r.Put("/put", handlePut)
 	r.Patch("/patch", handlePatch)
 
-	http.ListenAndServe(":8212", r)
+	host := os.Args[1]
+
+	origin := http.Server{
+		Addr:    host,
+		Handler: r,
+	}
+	log.Printf("Origin started at %s\n", host)
+	if err := origin.ListenAndServe(); err != nil {
+		log.Fatal(err)
+	}
 }

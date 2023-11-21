@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -41,11 +42,12 @@ func NewServer(s string) *Server {
 
 	reverse := &httputil.ReverseProxy{
 		Director: func(req *http.Request) {
-			req.URL = url
+			req.URL.Scheme = url.Scheme
+			req.URL.Host = url.Host
 		},
 		Transport: transport,
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
-			http.Error(w, "Origin server error", http.StatusInternalServerError)
+			http.Error(w, fmt.Sprintf("Origin server error %s", err), http.StatusInternalServerError)
 		},
 	}
 
@@ -94,7 +96,7 @@ func main() {
 			server.Reverse.ServeHTTP(w, r)
 			return
 		}
-		http.Error(w, "Ogirin server unavailable", http.StatusServiceUnavailable)
+		http.Error(w, "Origin server unavailable", http.StatusServiceUnavailable)
 	})
 
 	// For websocket proxy handler

@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"golang.org/x/net/http2"
 )
 
 type Server struct {
@@ -39,12 +41,17 @@ func NewServer(s string) *Server {
 		}).Dial,
 	}
 
+	upgradedTransport, err := http2.ConfigureTransports(transport)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	reverse := &httputil.ReverseProxy{
 		Director: func(req *http.Request) {
 			req.URL.Scheme = url.Scheme
 			req.URL.Host = url.Host
 		},
-		Transport: transport,
+		Transport: upgradedTransport,
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			http.Error(w, fmt.Sprintf("Origin server error %s", err), http.StatusInternalServerError)
 		},

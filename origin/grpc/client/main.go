@@ -9,10 +9,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
-	conn, err := grpc.Dial("localhost:4040", grpc.WithInsecure())
+	conn, err := grpc.Dial("127.0.0.1:9090", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		panic(err)
 	}
@@ -65,7 +66,7 @@ func main() {
 		}
 	})
 
-	if err := g.Run(":8080"); err != nil {
+	if err := g.Run("127.0.0.1:8080"); err != nil {
 		log.Fatalf("Failed to run server: %v", err)
 	}
 

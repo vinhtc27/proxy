@@ -30,7 +30,7 @@ func (s *server) Multiply(ctx context.Context, request *proto.Request) (*proto.R
 }
 
 func main() {
-	listener, err := net.Listen("tcp", ":4040")
+	listener, err := net.Listen("tcp", "127.0.0.1:4040")
 	if err != nil {
 		panic(err)
 	}

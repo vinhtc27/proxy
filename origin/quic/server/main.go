@@ -15,14 +15,10 @@ import (
 	"github.com/quic-go/quic-go"
 )
 
-const addr = "localhost:4242"
-
-const message = "foobar"
-
 // We start a server echoing data on the first stream the client opens,
 // then connect with a client, send the message, and wait for its receipt.
 func main() {
-	listener, err := quic.ListenAddr(addr, generateTLSConfig(), nil)
+	listener, err := quic.ListenAddr("127.0.0.1:4242", generateTLSConfig(), nil)
 	if err != nil {
 		log.Fatal(err)
 	}

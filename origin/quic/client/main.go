@@ -9,8 +9,6 @@ import (
 	"github.com/quic-go/quic-go"
 )
 
-const addr = "localhost:4242"
-
 const message = "foobar"
 
 func main() {
@@ -18,7 +16,7 @@ func main() {
 		InsecureSkipVerify: true,
 		NextProtos:         []string{"quic-echo-example"},
 	}
-	conn, err := quic.DialAddr(context.Background(), addr, tlsConf, nil)
+	conn, err := quic.DialAddr(context.Background(), "127.0.0.1:9090", tlsConf, nil)
 	if err != nil {
 		return
 	}

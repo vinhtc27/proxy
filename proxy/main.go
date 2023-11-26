@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"proxy/ratelimit/token_bucket"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -41,7 +40,7 @@ func NewServer(s string) *Server {
 		}).Dial,
 	}
 
-	upgradedTransport, err := http2.ConfigureTransports(transport)
+	err = http2.ConfigureTransport(transport)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -51,7 +50,7 @@ func NewServer(s string) *Server {
 			req.URL.Scheme = url.Scheme
 			req.URL.Host = url.Host
 		},
-		Transport: upgradedTransport,
+		Transport: transport,
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			http.Error(w, fmt.Sprintf("Origin server error %s", err), http.StatusInternalServerError)
 		},
@@ -111,8 +110,8 @@ func main() {
 		WriteTimeout:      1 * time.Second,
 		ReadHeaderTimeout: 2 * time.Second,
 		IdleTimeout:       30 * time.Second,
-		// Handler:           handler,
-		Handler: token_bucket.RequestThrottler(handler, 100),
+		Handler:           handler,
+		// Handler: token_bucket.RequestThrottler(handler, 100),
 	}
 
 	log.Printf("Proxy started at %s\n", host)

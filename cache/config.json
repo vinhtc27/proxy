@@ -1,7 +1,0 @@
-{
-	"port": "8080",
-	"target": "https://github.com",
-	"cache_folder": "./cache/data/",
-	"debug_logging": true,
-	"max_cache_item_size": 5
-}

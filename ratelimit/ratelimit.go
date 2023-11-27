@@ -1,4 +1,4 @@
-package algorithm
+package ratelimit
 
 import "net/http"
 

@@ -8,12 +8,27 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"proxy/ratelimit"
 	"strings"
 	"sync/atomic"
 	"time"
 
 	"golang.org/x/net/http2"
 )
+
+type Config struct {
+	EnableRateLimit      bool     `json:"enableRateLimit"`
+	RateLimitType        string   `json:"rateLimitType"`
+	RatePerSecond        int      `json:"ratePerSecond"`
+	EnableLoadBalance    bool     `json:"enableLoadBalance"`
+	LoadBalanceEndpoints []string `json:"loadBalanceEndpoints"`
+}
+
+type Proxy struct {
+	Config     *Config
+	ServerPool *ServerPool
+	Limiter    *ratelimit.Limiter
+}
 
 type Server struct {
 	Url     *url.URL

@@ -61,7 +61,7 @@ func (sll *SlidingLogLimiter) Halt(host string) bool {
 	return false
 }
 
-func RequestThrottlerMiddleware(h http.Handler, maxRequests int) http.Handler {
+func RequestThrottler(h http.Handler, maxRequests int) http.Handler {
 	throttler := NewSlidingLogLimiter(10*time.Second, maxRequests)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

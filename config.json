@@ -1,10 +1,9 @@
 {
     "enableRateLimit": true,
-    "rateLimitType": "token_bucket",
-    "ratePerSecond": 0,
+    "rateLimitType": "sliding_window",
+    "ratePerSecond": 100,
     "enableLoadBalance": true,
     "loadBalanceEndpoints": [
-        "http://127.0.0.1:8080",
-        "http://127.0.0.1:8081"
+        "http://127.0.0.1:8080"
     ]
 }

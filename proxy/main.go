@@ -1,15 +1,20 @@
 package main
 
 import (
-	"flag"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"proxy/ratelimit"
-	"strings"
+	"proxy/ratelimit/fixed_window"
+	"proxy/ratelimit/sliding_log"
+	"proxy/ratelimit/sliding_window"
+	"proxy/ratelimit/token_bucket"
 	"sync/atomic"
 	"time"
 
@@ -24,7 +29,7 @@ type Config struct {
 	LoadBalanceEndpoints []string `json:"loadBalanceEndpoints"`
 }
 
-type Proxy struct {
+type ProxyConfig struct {
 	Config     *Config
 	ServerPool *ServerPool
 	Limiter    *ratelimit.Limiter
@@ -94,24 +99,47 @@ func (s *ServerPool) GetServer() *Server {
 }
 
 func main() {
-	var serversArg string
-	var websocketArg string
-	flag.StringVar(&serversArg, "servers", "", "Load balanced servers, use commas to separate")
-	flag.StringVar(&websocketArg, "websocket", "", "Whether to use websocket")
-	flag.Parse()
-	if len(serversArg) == 0 {
-		log.Fatal("Missing servers parameter")
+	var proxyConfig = new(ProxyConfig)
+
+	jsonFile, err := os.Open("./config.json")
+
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer func(jsonFile *os.File) {
+		err := jsonFile.Close()
+		if err != nil {
+			fmt.Println(err)
+		}
+	}(jsonFile)
+
+	byteValue, _ := io.ReadAll(jsonFile)
+
+	errRead := json.Unmarshal(byteValue, &proxyConfig.Config)
+	if errRead != nil {
+		fmt.Println(errRead)
+		return
 	}
 
-	servers := strings.Split(serversArg, ",")
-	serverPool := ServerPool{index: -1}
-	for _, s := range servers {
-		serverPool.AddServer(NewServer(s))
+	//var serversArg string
+	//var websocketArg string
+	//flag.StringVar(&serversArg, "servers", "", "Load balanced servers, use commas to separate")
+	//flag.StringVar(&websocketArg, "websocket", "", "Whether to use websocket")
+	//flag.Parse()
+	//if len(serversArg) == 0 {
+	//	log.Fatal("Missing servers parameter")
+	//}
+
+	//servers := strings.Split(serversArg, ",")
+	//servers := config.LoadBalanceEndpoints
+	proxyConfig.ServerPool = &ServerPool{index: -1}
+	for _, s := range proxyConfig.Config.LoadBalanceEndpoints {
+		proxyConfig.ServerPool.AddServer(NewServer(s))
 	}
 
 	host := "127.0.0.1:9090"
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		server := serverPool.GetServer()
+		server := proxyConfig.ServerPool.GetServer()
 		if server != nil {
 			server.Reverse.ServeHTTP(w, r)
 			return
@@ -119,15 +147,49 @@ func main() {
 		http.Error(w, "Origin server unavailable", http.StatusServiceUnavailable)
 	})
 
-	proxy := http.Server{
-		Addr:              host,
-		ReadTimeout:       1 * time.Second,
-		WriteTimeout:      1 * time.Second,
-		ReadHeaderTimeout: 2 * time.Second,
-		IdleTimeout:       30 * time.Second,
-		Handler:           handler,
-		// Handler: token_bucket.RequestThrottler(handler, 100),
+	var proxy http.Server
+	if proxyConfig.Config.EnableRateLimit {
+		var rateLimitHandler http.Handler
+		switch proxyConfig.Config.RateLimitType {
+		case "fixed_window":
+			rateLimitHandler = fixed_window.RequestThrottler(handler, int64(proxyConfig.Config.RatePerSecond))
+		case "sliding_log":
+			rateLimitHandler = sliding_log.RequestThrottler(handler, proxyConfig.Config.RatePerSecond)
+		case "sliding_window":
+			rateLimitHandler = sliding_window.RequestThrottler(handler, int64(proxyConfig.Config.RatePerSecond))
+		default:
+			rateLimitHandler = token_bucket.RequestThrottler(handler, int64(proxyConfig.Config.RatePerSecond))
+		}
+		proxy = http.Server{
+			Addr:              host,
+			ReadTimeout:       1 * time.Second,
+			WriteTimeout:      1 * time.Second,
+			ReadHeaderTimeout: 2 * time.Second,
+			IdleTimeout:       30 * time.Second,
+			Handler:           rateLimitHandler,
+			// Handler: token_bucket.RequestThrottler(handler, 100),
+		}
+	} else {
+		proxy = http.Server{
+			Addr:              host,
+			ReadTimeout:       1 * time.Second,
+			WriteTimeout:      1 * time.Second,
+			ReadHeaderTimeout: 2 * time.Second,
+			IdleTimeout:       30 * time.Second,
+			Handler:           handler,
+		}
 	}
+
+	fmt.Println(proxyConfig.Config.LoadBalanceEndpoints)
+	//proxy := http.Server{
+	//	Addr:              host,
+	//	ReadTimeout:       1 * time.Second,
+	//	WriteTimeout:      1 * time.Second,
+	//	ReadHeaderTimeout: 2 * time.Second,
+	//	IdleTimeout:       30 * time.Second,
+	//	Handler:           handler,
+	//	// Handler: token_bucket.RequestThrottler(handler, 100),
+	//}
 
 	log.Printf("Proxy started at %s\n", host)
 	if err := proxy.ListenAndServe(); err != nil {

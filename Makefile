@@ -1,5 +1,5 @@
 single-origin:
-	go run origin/tcp/main.go 127.0.0.1:8080
+	go run origin/tcp/tcp.go 127.0.0.1:8080
 
 multi-origin:
 	go run origin/tcp/main.go 127.0.0.1:8081 & \

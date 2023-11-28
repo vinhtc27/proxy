@@ -25,7 +25,6 @@ type Config struct {
 	EnableRateLimit      bool     `json:"enableRateLimit"`
 	RateLimitType        string   `json:"rateLimitType"`
 	RatePerSecond        int      `json:"ratePerSecond"`
-	EnableLoadBalance    bool     `json:"enableLoadBalance"`
 	LoadBalanceEndpoints []string `json:"loadBalanceEndpoints"`
 }
 
@@ -132,20 +131,32 @@ func main() {
 
 	//servers := strings.Split(serversArg, ",")
 	//servers := config.LoadBalanceEndpoints
-	proxyConfig.ServerPool = &ServerPool{index: -1}
-	for _, s := range proxyConfig.Config.LoadBalanceEndpoints {
-		proxyConfig.ServerPool.AddServer(NewServer(s))
-	}
-
 	host := "127.0.0.1:9090"
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		server := proxyConfig.ServerPool.GetServer()
-		if server != nil {
-			server.Reverse.ServeHTTP(w, r)
-			return
+	var handler http.HandlerFunc
+
+	if len(proxyConfig.Config.LoadBalanceEndpoints) >= 2 {
+		proxyConfig.ServerPool = &ServerPool{index: -1}
+		for _, s := range proxyConfig.Config.LoadBalanceEndpoints {
+			proxyConfig.ServerPool.AddServer(NewServer(s))
 		}
-		http.Error(w, "Origin server unavailable", http.StatusServiceUnavailable)
-	})
+		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			server := proxyConfig.ServerPool.GetServer()
+			if server != nil {
+				server.Reverse.ServeHTTP(w, r)
+				return
+			}
+			http.Error(w, "Origin server unavailable", http.StatusServiceUnavailable)
+		})
+	} else {
+		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			server := NewServer(proxyConfig.Config.LoadBalanceEndpoints[0])
+			if server != nil {
+				server.Reverse.ServeHTTP(w, r)
+				return
+			}
+			http.Error(w, "Origin server unavailable", http.StatusServiceUnavailable)
+		})
+	}
 
 	var proxy http.Server
 	if proxyConfig.Config.EnableRateLimit {

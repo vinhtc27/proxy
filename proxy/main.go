@@ -1,19 +1,38 @@
 package main
 
 import (
-	"flag"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"strings"
+	"os"
+	"proxy/ratelimit"
+	"proxy/ratelimit/fixed_window"
+	"proxy/ratelimit/sliding_log"
+	"proxy/ratelimit/sliding_window"
+	"proxy/ratelimit/token_bucket"
 	"sync/atomic"
 	"time"
 
 	"golang.org/x/net/http2"
 )
+
+type Config struct {
+	EnableRateLimit      bool     `json:"enableRateLimit"`
+	RateLimitType        string   `json:"rateLimitType"`
+	RatePerSecond        int      `json:"ratePerSecond"`
+	LoadBalanceEndpoints []string `json:"loadBalanceEndpoints"`
+}
+
+type ProxyConfig struct {
+	Config     *Config
+	ServerPool *ServerPool
+	Limiter    *ratelimit.Limiter
+}
 
 type Server struct {
 	Url     *url.URL
@@ -79,40 +98,109 @@ func (s *ServerPool) GetServer() *Server {
 }
 
 func main() {
-	var serversArg string
-	var websocketArg string
-	flag.StringVar(&serversArg, "servers", "", "Load balanced servers, use commas to separate")
-	flag.StringVar(&websocketArg, "websocket", "", "Whether to use websocket")
-	flag.Parse()
-	if len(serversArg) == 0 {
-		log.Fatal("Missing servers parameter")
-	}
+	var proxyConfig = new(ProxyConfig)
 
-	servers := strings.Split(serversArg, ",")
-	serverPool := ServerPool{index: -1}
-	for _, s := range servers {
-		serverPool.AddServer(NewServer(s))
-	}
+	jsonFile, err := os.Open("./config.json")
 
-	host := "127.0.0.1:9090"
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		server := serverPool.GetServer()
-		if server != nil {
-			server.Reverse.ServeHTTP(w, r)
-			return
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer func(jsonFile *os.File) {
+		err := jsonFile.Close()
+		if err != nil {
+			fmt.Println(err)
 		}
-		http.Error(w, "Origin server unavailable", http.StatusServiceUnavailable)
-	})
+	}(jsonFile)
 
-	proxy := http.Server{
-		Addr:              host,
-		ReadTimeout:       1 * time.Second,
-		WriteTimeout:      1 * time.Second,
-		ReadHeaderTimeout: 2 * time.Second,
-		IdleTimeout:       30 * time.Second,
-		Handler:           handler,
-		// Handler: token_bucket.RequestThrottler(handler, 100),
+	byteValue, _ := io.ReadAll(jsonFile)
+
+	errRead := json.Unmarshal(byteValue, &proxyConfig.Config)
+	if errRead != nil {
+		fmt.Println(errRead)
+		return
 	}
+
+	//var serversArg string
+	//var websocketArg string
+	//flag.StringVar(&serversArg, "servers", "", "Load balanced servers, use commas to separate")
+	//flag.StringVar(&websocketArg, "websocket", "", "Whether to use websocket")
+	//flag.Parse()
+	//if len(serversArg) == 0 {
+	//	log.Fatal("Missing servers parameter")
+	//}
+
+	//servers := strings.Split(serversArg, ",")
+	//servers := config.LoadBalanceEndpoints
+	host := "127.0.0.1:9090"
+	var handler http.HandlerFunc
+
+	if len(proxyConfig.Config.LoadBalanceEndpoints) >= 2 {
+		proxyConfig.ServerPool = &ServerPool{index: -1}
+		for _, s := range proxyConfig.Config.LoadBalanceEndpoints {
+			proxyConfig.ServerPool.AddServer(NewServer(s))
+		}
+		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			server := proxyConfig.ServerPool.GetServer()
+			if server != nil {
+				server.Reverse.ServeHTTP(w, r)
+				return
+			}
+			http.Error(w, "Origin server unavailable", http.StatusServiceUnavailable)
+		})
+	} else {
+		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			server := NewServer(proxyConfig.Config.LoadBalanceEndpoints[0])
+			if server != nil {
+				server.Reverse.ServeHTTP(w, r)
+				return
+			}
+			http.Error(w, "Origin server unavailable", http.StatusServiceUnavailable)
+		})
+	}
+
+	var proxy http.Server
+	if proxyConfig.Config.EnableRateLimit {
+		var rateLimitHandler http.Handler
+		switch proxyConfig.Config.RateLimitType {
+		case "fixed_window":
+			rateLimitHandler = fixed_window.RequestThrottler(handler, int64(proxyConfig.Config.RatePerSecond))
+		case "sliding_log":
+			rateLimitHandler = sliding_log.RequestThrottler(handler, proxyConfig.Config.RatePerSecond)
+		case "sliding_window":
+			rateLimitHandler = sliding_window.RequestThrottler(handler, int64(proxyConfig.Config.RatePerSecond))
+		default:
+			rateLimitHandler = token_bucket.RequestThrottler(handler, int64(proxyConfig.Config.RatePerSecond))
+		}
+		proxy = http.Server{
+			Addr:              host,
+			ReadTimeout:       1 * time.Second,
+			WriteTimeout:      1 * time.Second,
+			ReadHeaderTimeout: 2 * time.Second,
+			IdleTimeout:       30 * time.Second,
+			Handler:           rateLimitHandler,
+			// Handler: token_bucket.RequestThrottler(handler, 100),
+		}
+	} else {
+		proxy = http.Server{
+			Addr:              host,
+			ReadTimeout:       1 * time.Second,
+			WriteTimeout:      1 * time.Second,
+			ReadHeaderTimeout: 2 * time.Second,
+			IdleTimeout:       30 * time.Second,
+			Handler:           handler,
+		}
+	}
+
+	fmt.Println(proxyConfig.Config.LoadBalanceEndpoints)
+	//proxy := http.Server{
+	//	Addr:              host,
+	//	ReadTimeout:       1 * time.Second,
+	//	WriteTimeout:      1 * time.Second,
+	//	ReadHeaderTimeout: 2 * time.Second,
+	//	IdleTimeout:       30 * time.Second,
+	//	Handler:           handler,
+	//	// Handler: token_bucket.RequestThrottler(handler, 100),
+	//}
 
 	log.Printf("Proxy started at %s\n", host)
 	if err := proxy.ListenAndServe(); err != nil {

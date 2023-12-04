@@ -1,0 +1,8 @@
+{
+    "enableRateLimit": true,
+    "rateLimitType": "sliding_window",
+    "ratePerSecond": 100,
+    "loadBalanceEndpoints": [
+        "http://127.0.0.1:8080"
+    ]
+}

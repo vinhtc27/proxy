@@ -43,7 +43,7 @@ func TestRateLimiter_IsLimited(t *testing.T) {
 			err := r.inc("key")
 			assert.NoError(t, err, tt.name)
 		}
-		limitStatus, err := r.Halt("key")
+		limitStatus, err := r.Halt("key", 100)
 		assert.NoError(t, err, tt.name)
 		assert.Equal(t, tt.wantLimitStatus.IsLimited, limitStatus.IsLimited, tt.name)
 		assert.Equal(t, tt.wantLimitStatus.CurrentRate, limitStatus.CurrentRate, tt.name)

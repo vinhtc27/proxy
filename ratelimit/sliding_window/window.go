@@ -36,7 +36,8 @@ type LimitStatus struct {
 }
 
 // Halt checks status of rate-limiting for a key. It returns error when limiter data could not be read
-func (w *window) Halt(key string) (limitStatus *LimitStatus, err error) {
+func (w *window) Halt(key string, maxAmount int64) (limitStatus *LimitStatus, err error) {
+	w.maxAmount = maxAmount
 	currentSize := time.Now().UTC().Truncate(w.windowSize)
 	previousSize := currentSize.Add(-w.windowSize)
 	prevValue, currentValue, err := w.windowStore.get(key, previousSize, currentSize)

@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
+	"github.com/go-chi/chi"
 	"github.com/gorilla/websocket"
 )
 
@@ -134,7 +136,17 @@ func dataStreamEndpoint(w http.ResponseWriter, r *http.Request) {
 
 }
 func main() {
-	http.HandleFunc("/", rootEndpoint)
-	http.HandleFunc("/data", dataStreamEndpoint)
-	log.Fatal(http.ListenAndServe("127.0.0.1:8312", nil))
+	r := chi.NewRouter()
+	r.HandleFunc("/", rootEndpoint)
+	r.HandleFunc("/data", dataStreamEndpoint)
+	host := os.Args[1]
+
+	origin := http.Server{
+		Addr:    host,
+		Handler: r,
+	}
+	log.Printf("Origin started at %s\n", host)
+	if err := origin.ListenAndServe(); err != nil {
+		log.Fatal(err)
+	}
 }

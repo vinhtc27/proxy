@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"log"
 	"net"
@@ -14,6 +15,7 @@ import (
 	"proxy/ratelimit/sliding_log"
 	"proxy/ratelimit/sliding_window"
 	"proxy/ratelimit/token_bucket"
+	"proxy/utils"
 	"sync/atomic"
 	"time"
 
@@ -26,6 +28,7 @@ type Config struct {
 	RateLimitType        string   `json:"rateLimitType"`
 	RatePerSecond        int64    `json:"ratePerSecond"`
 	LoadBalanceEndpoints []string `json:"loadBalanceEndpoints"`
+	LoadBalanceType      string   `json:"loadBalanceType"`
 }
 
 type ProxyConfig struct {
@@ -80,18 +83,26 @@ func NewServer(s string) *Server {
 }
 
 type ServerPool struct {
-	servers []*Server
-	index   int64
+	loadBalanceType string
+	servers         []*Server
+	index           int64
 }
 
 func (s *ServerPool) AddServer(server *Server) {
 	s.servers = append(s.servers, server)
 }
 
-func (s *ServerPool) GetServer() *Server {
+func (s *ServerPool) GetServer(r *http.Request) *Server {
+	if s.loadBalanceType == "ip_hash" {
+		ip := utils.GetRemoteIP(r)
+		h := fnv.New32a()
+		h.Write([]byte(ip))
+		atomic.StoreInt64(&s.index, int64(h.Sum32()))
+		return s.servers[s.index%int64(len(s.servers))]
+	}
 	atomic.AddInt64(&s.index, 1)
-	//TODO: check overflow s.index
 	return s.servers[s.index%int64(len(s.servers))]
+
 }
 
 func main() {
@@ -122,6 +133,10 @@ func main() {
 	if len(proxyConfig.Config.LoadBalanceEndpoints) == 0 {
 		log.Panic("Error: config.json must have loadBalanceEndpoints")
 	}
+	if proxyConfig.Config.LoadBalanceType == "" {
+		log.Panic("Error: config.json must have loadBalanceType")
+	}
+
 	if proxyConfig.Config.EnableRateLimit {
 		if proxyConfig.Config.RateLimitType == "" {
 			log.Panic("Error: config.json must have rateLimitType")
@@ -133,12 +148,12 @@ func main() {
 
 	var handler http.HandlerFunc
 	if len(proxyConfig.Config.LoadBalanceEndpoints) >= 2 {
-		proxyConfig.ServerPool = &ServerPool{index: -1}
+		proxyConfig.ServerPool = &ServerPool{loadBalanceType: proxyConfig.Config.LoadBalanceType, index: -1}
 		for _, s := range proxyConfig.Config.LoadBalanceEndpoints {
 			proxyConfig.ServerPool.AddServer(NewServer(s))
 		}
 		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			server := proxyConfig.ServerPool.GetServer()
+			server := proxyConfig.ServerPool.GetServer(r)
 			if server != nil {
 				server.Reverse.ServeHTTP(w, r)
 				return

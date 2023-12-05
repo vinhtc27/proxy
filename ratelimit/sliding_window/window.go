@@ -11,10 +11,9 @@ type window struct {
 	maxAmount   int64
 }
 
-func newWindow(windowStore store, maxAmount int64, windowSize time.Duration) *window {
+func newWindow(windowStore store, windowSize time.Duration) *window {
 	return &window{
 		windowStore: windowStore,
-		maxAmount:   maxAmount,
 		windowSize:  windowSize,
 	}
 }

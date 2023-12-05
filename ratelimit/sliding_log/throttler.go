@@ -19,7 +19,7 @@ func newSlidingLogLimiter(interval time.Duration) *SlidingLogLimiter {
 	}
 }
 
-func (sll *SlidingLogLimiter) Halt(host string, maxRequests int) bool {
+func (sll *SlidingLogLimiter) Halt(host string, maxRequests int64) bool {
 	sll.mu.Lock()
 	defer sll.mu.Unlock()
 
@@ -31,7 +31,7 @@ func (sll *SlidingLogLimiter) Halt(host string, maxRequests int) bool {
 	}
 
 	// Đếm số request trong thời gian tính từ thời điểm gọi đến trước đó 1 khoảng thời gian bằng cách duyệt từ cuối hostLog
-	requestCount := 0
+	var requestCount int64 = 0
 	timestamp := now.Add(-sll.interval)
 	newTs := sll.hostLog[host][:0]
 	for i := len(sll.hostLog[host]) - 1; i >= 0; i-- {

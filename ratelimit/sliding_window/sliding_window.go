@@ -12,7 +12,7 @@ var (
 	windowStore = newLocalStore(2*windowSize, 100*time.Millisecond)
 )
 
-var requestThrottler = newWindow(windowStore, 100, windowSize)
+var requestThrottler = newWindow(windowStore, 100)
 
 func RequestThrottler(h http.Handler, maxAmount int64) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

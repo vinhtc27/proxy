@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"net"
+	"os"
 	"proxy/origin/grpc/proto"
 
 	"google.golang.org/grpc"
@@ -30,7 +31,8 @@ func (s *server) Multiply(ctx context.Context, request *proto.Request) (*proto.R
 }
 
 func main() {
-	listener, err := net.Listen("tcp", "127.0.0.1:4040")
+	host := os.Args[1]
+	listener, err := net.Listen("tcp", host)
 	if err != nil {
 		panic(err)
 	}

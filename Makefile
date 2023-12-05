@@ -11,8 +11,11 @@ multi-tcp:
 	go run origin/tcp/tcp.go 127.0.0.1:8084 & \
 	go run origin/tcp/tcp.go 127.0.0.1:8085
 
-websocket-origin:
-	go run origin/websocket/main.go
+single-websocket:
+	go run origin/websocket/websocket.go 127.0.0.1:8080
 
-websocket-proxy:
-	go run proxy/main.go --servers=http://127.0.0.1:8080 --websocket=true
+single-grpc:
+	go run origin/grpc/server/grpc.go 127.0.0.1:8080
+
+single-quic:
+	go run origin/quic/server/quic.go 127.0.0.1:8080

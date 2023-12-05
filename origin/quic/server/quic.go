@@ -20,6 +20,7 @@ import (
 // then connect with a client, send the message, and wait for its receipt.
 func main() {
 	host := os.Args[1]
+	log.Printf("GRPC started at %s\n", host)
 	listener, err := quic.ListenAddr(host, generateTLSConfig(), nil)
 	if err != nil {
 		log.Fatal(err)
@@ -28,7 +29,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("GRPC started at %s\n", host)
 	stream, err := conn.AcceptStream(context.Background())
 	if err != nil {
 		panic(err)

@@ -6,5 +6,5 @@
     "loadBalanceEndpoints": [
         "http://127.0.0.1:8080"
     ],
-    "loadBalanceType": "ip_hash"
+    "loadBalanceType": "round_robin"
 }

@@ -1,6 +1,7 @@
 package token_bucket
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"time"
@@ -15,6 +16,7 @@ func RequestThrottler(h http.Handler, maxAmount int64) http.Handler {
 		host, _, _ := net.SplitHostPort(r.RemoteAddr)
 		if requestThrottler.Halt(host, 1, maxAmount) {
 			http.Error(w, "Too many requests", http.StatusTooManyRequests)
+			fmt.Println("Rate limit [token_bucket]: too many requests")
 			return
 		}
 		h.ServeHTTP(w, r)

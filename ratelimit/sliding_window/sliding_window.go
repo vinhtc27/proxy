@@ -1,6 +1,7 @@
 package sliding_window
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"proxy/utils"
@@ -27,6 +28,7 @@ func RequestThrottler(h http.Handler, maxAmount int64) http.Handler {
 		}
 		if limitStatus.IsLimited {
 			http.Error(w, "Too many requests", http.StatusTooManyRequests)
+			fmt.Println("Rate limit [sliding_window]: too many requests")
 			return
 		}
 

@@ -5,21 +5,23 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 )
 
 func main() {
 	host := os.Args[1]
 	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		_, err := fmt.Fprintf(w, "[%s] origin server response\n", host)
+		_, err := fmt.Fprintf(w, "[%s] TCP response\n", host)
 		if err != nil {
 			fmt.Printf("[%s] response write error : %v\n", host, err)
 		}
+		fmt.Printf("TCP response at %v from %s\n", time.Now().Format("2006-01-02 15:04:05"), host)
 	})
 	origin := http.Server{
 		Addr:    host,
 		Handler: handler,
 	}
-	log.Printf("Origin started at %s\n", host)
+	log.Printf("TCP started at %s\n", host)
 	if err := origin.ListenAndServe(); err != nil {
 		log.Fatal(err)
 	}

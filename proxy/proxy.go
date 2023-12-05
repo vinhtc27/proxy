@@ -35,7 +35,6 @@ type ProxyConfig struct {
 
 type Server struct {
 	Url     *url.URL
-	Alive   bool
 	Reverse *httputil.ReverseProxy
 }
 
@@ -76,7 +75,6 @@ func NewServer(s string) *Server {
 
 	return &Server{
 		Url:     url,
-		Alive:   true,
 		Reverse: reverse,
 	}
 }
@@ -128,7 +126,7 @@ func main() {
 		if proxyConfig.Config.RateLimitType == "" {
 			log.Panic("Error: config.json must have rateLimitType")
 		}
-		if proxyConfig.Config.RatePerSecond == 0 {
+		if proxyConfig.Config.RatePerSecond <= 0 {
 			log.Panic("Error: config.json must have ratePerSecond")
 		}
 	}
@@ -190,8 +188,8 @@ func main() {
 		}
 	}
 
-	fmt.Println(proxyConfig.Config.LoadBalanceEndpoints)
 	log.Printf("Proxy started at %s\n", proxyConfig.Config.Address)
+	fmt.Println("Endpoint: ", proxyConfig.Config.LoadBalanceEndpoints)
 	if err := httpServer.ListenAndServe(); err != nil {
 		log.Fatal(err)
 	}

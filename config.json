@@ -1,6 +1,6 @@
 {
     "address": "127.0.0.1:9090",
-    "enableRateLimit": false,
+    "enableRateLimit": true,
     "rateLimitType": "token_bucket",
     "ratePerSecond": 10,
     "loadBalanceEndpoints": [

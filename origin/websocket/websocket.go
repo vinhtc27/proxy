@@ -145,7 +145,7 @@ func main() {
 		Addr:    host,
 		Handler: r,
 	}
-	log.Printf("Origin started at %s\n", host)
+	log.Printf("WEBSOCKET started at %s\n", host)
 	if err := origin.ListenAndServe(); err != nil {
 		log.Fatal(err)
 	}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log"
 	"net"
 	"os"
 	"proxy/origin/grpc/proto"
@@ -41,6 +42,7 @@ func main() {
 	proto.RegisterAddServiceServer(srv, &server{})
 	reflection.Register(srv)
 
+	log.Printf("GRPC started at %s\n", host)
 	if e := srv.Serve(listener); e != nil {
 		panic(e)
 	}

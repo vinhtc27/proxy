@@ -4,11 +4,14 @@ single-proxy:
 image-proxy:
 	docker build --tag proxy .
 
-docker-proxy:
-	docker run --name=docker-proxy -v ./config.json:/config.json proxy
-
 single-tcp:
-	go run origin/tcp/tcp.go 127.0.0.1:8080
+	HOST=127.0.0.1:8080 go run origin/tcp/tcp.go
+
+image-tcp:
+	docker build --tag tcp ./origin/tcp/
+
+compose:
+	docker-compose -f docker-compose.yml up
 
 multi-tcp:
 	go run origin/tcp/tcp.go 127.0.0.1:8081 & \

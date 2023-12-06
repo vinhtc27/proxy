@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	host := os.Args[1]
+	host := os.Getenv("HOST")
 	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		_, err := fmt.Fprintf(w, "[%s] TCP response\n", host)
 		if err != nil {

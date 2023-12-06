@@ -1,0 +1,23 @@
+version: "3.2"
+services:
+  proxy:
+    container_name: "proxy"
+    image: "proxy"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config.json:/config.json
+    networks:
+      - proxy-network
+  tcp:
+    container_name: "tcp"
+    image: "tcp"
+    environment:
+      - HOST=0.0.0.0:8080
+    ports:
+      - "8080:8080"
+    networks:
+      - proxy-network
+networks:
+  proxy-network:
+    driver: bridge

@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/quic-go/quic-go"
 )
@@ -12,11 +13,12 @@ import (
 const message = "foobar"
 
 func main() {
+	host := os.Args[1]
 	tlsConf := &tls.Config{
 		InsecureSkipVerify: true,
 		NextProtos:         []string{"quic-echo-example"},
 	}
-	conn, err := quic.DialAddr(context.Background(), "127.0.0.1:8080", tlsConf, nil)
+	conn, err := quic.DialAddr(context.Background(), host, tlsConf, nil)
 	if err != nil {
 		return
 	}

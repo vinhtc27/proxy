@@ -1,10 +1,10 @@
 {
-    "address": "0.0.0.0:9090",
+    "address": "127.0.0.1:9090",
     "enableRateLimit": false,
     "rateLimitType": "token_bucket",
     "ratePerSecond": 10,
     "loadBalanceEndpoints": [
-        "http://tcp:8080"
+        "http://127.0.0.1:8080"
     ],
     "loadBalanceType": "round_robin"
 }

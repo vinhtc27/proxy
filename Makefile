@@ -1,8 +1,11 @@
 single-proxy:
 	go run proxy/proxy.go
 
-docker-proxy:
+image-proxy:
 	docker build --tag proxy .
+
+docker-proxy:
+	docker run --name=docker-proxy -v ./config.json:/config.json proxy
 
 single-tcp:
 	go run origin/tcp/tcp.go 127.0.0.1:8080
